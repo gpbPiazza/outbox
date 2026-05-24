@@ -30,12 +30,12 @@ type PostBody struct {
 }
 
 func (wes *WesHandler) post(w http.ResponseWriter, r *http.Request) {
-	bodyReader, err := r.GetBody()
-	if err != nil {
-		log.FromContext(r.Context()).Error("getBody fail", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	logger := log.FromContext(r.Context())
+	if logger == nil {
+		panic("ai middlweare nao foi")
 	}
+
+	bodyReader := r.Body
 
 	bodyByte, err := io.ReadAll(bodyReader)
 	if err != nil {
@@ -43,6 +43,8 @@ func (wes *WesHandler) post(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	defer func() { _ = bodyReader.Close() }()
 
 	body := new(PostBody)
 	if err := json.Unmarshal(bodyByte, body); err != nil {
