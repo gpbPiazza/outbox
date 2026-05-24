@@ -17,7 +17,7 @@ type Env struct {
 type Database struct {
 	// DatabaseURL example: "postgres://username:password@localhost:5432/database_name"
 	DatabaseURL         string        `env:"DATABASE_URL,required"`
-	DBMateMigrationsDir string        `env:"DBMATE_MIGRATIONS_DIR" envDefault:"./infra/databases/sql/migrations"`
+	GooseMigrationsDir  string        `env:"GOOSE_MIGRATIONS_DIR" envDefault:"./infra/databases/sql/migrations"`
 	MaxConns            int           `env:"DATABASE_POOL_MAX_CONNS" envDefault:"25"`
 	MinConns            int           `env:"DATABASE_POOL_MIN_CONNS" envDefault:"25"`
 	MaxConnsLifeTime    time.Duration `env:"DATABASE_POOL_MAX_CONN_LIFETIME" envDefault:"30m"`

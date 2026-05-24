@@ -7,6 +7,7 @@ import (
 	"github.com/gpbPiazza/pkg/db"
 	"github.com/gpbPiazza/pkg/log"
 	"github.com/gpbPiazza/wes"
+	q "github.com/gpbPiazza/wes/db"
 )
 
 func main() {
@@ -23,7 +24,8 @@ func main() {
 
 	server := http.NewServeMux()
 
-	wesHandler := &wes.WesHandler{}
+	querier := q.New(dbx)
+	wesHandler := wes.NewHandler(querier)
 	server.Handle("/wes", ctxMiddleware(wesHandler, ctx))
 
 	logger.Info("starting wes server")

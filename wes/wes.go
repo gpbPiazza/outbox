@@ -5,12 +5,22 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/gpbPiazza/pkg/db"
 	"github.com/gpbPiazza/pkg/log"
+	q "github.com/gpbPiazza/wes/db"
 )
 
 type WesHandler struct {
+	Querier q.Querier
+}
+
+func NewHandler(querier q.Querier) *WesHandler {
+	return &WesHandler{
+		Querier: querier,
+	}
 }
 
 func (wes *WesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -30,7 +40,8 @@ type PostBody struct {
 }
 
 func (wes *WesHandler) post(w http.ResponseWriter, r *http.Request) {
-	logger := log.FromContext(r.Context())
+	ctx := r.Context()
+	logger := log.FromContext(ctx)
 	if logger == nil {
 		panic("ai middlweare nao foi")
 	}
@@ -55,6 +66,23 @@ func (wes *WesHandler) post(w http.ResponseWriter, r *http.Request) {
 
 	theMan := makeWes(body.Moves)
 
+	dbx := db.FromContext(ctx)
+
+	tx, err := dbx.Begin()
+	if err != nil {
+		log.FromContext(r.Context()).Error("fail to start tx", "err", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			log.FromContext(r.Context()).Error("fail to rollback tx", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}()
+
 	wesInBytes, err := json.Marshal(theMan)
 	if err != nil {
 		log.FromContext(r.Context()).Error("marshalling wes fail", "err", err)
@@ -70,9 +98,11 @@ func (wes *WesHandler) get(w http.ResponseWriter, r *http.Request) {
 }
 
 type Wes struct {
-	ID     uuid.UUID `json:"id"`
-	Height string    `json:"hight"`
-	Moves  []Move    `json:"moves"`
+	ID        uuid.UUID `json:"id"`
+	Height    string    `json:"hight"`
+	Moves     []Move    `json:"moves"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type MoveStatus string
@@ -86,8 +116,10 @@ const (
 
 type Move struct {
 	ID          uuid.UUID  `json:"id"`
+	WesID       uuid.UUID  `json:"wes_id"`
 	Status      MoveStatus `json:"status"`
 	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 func makeWes(movesToAdd []Move) *Wes {
