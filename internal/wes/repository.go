@@ -62,6 +62,11 @@ func (q *repository) RunInTx(ctx context.Context, fn func(qw Querier) error) err
 		}
 	}
 
+	err = tx.Commit()
+	if err != nil {
+		log.FromContext(ctx).Error("erro during tx", "err", err)
+	}
+
 	return err
 }
 

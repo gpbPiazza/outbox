@@ -22,11 +22,7 @@ func main() {
 	ctx = db.SetContext(ctx, dbx)
 
 	server := http.NewServeMux()
-
-	repo := wes.NewRepository(dbx)
-	wesHandler := wes.NewHandler(repo)
-
-	server.Handle("/wes", ctxMiddleware(wesHandler, ctx))
+	wes.RegisterHandlers(ctx, dbx, server)
 
 	logger.Info("starting wes server")
 
@@ -34,11 +30,4 @@ func main() {
 		logger.Error("listen and server", "err", err)
 		return
 	}
-}
-
-func ctxMiddleware(next http.Handler, ctx context.Context) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r = r.WithContext(ctx)
-		next.ServeHTTP(w, r)
-	})
 }

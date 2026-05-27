@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/gpbPiazza/migrator"
+	"github.com/gpbPiazza/internal/migrator"
 	"github.com/gpbPiazza/pkg/db"
 	"github.com/gpbPiazza/pkg/log"
 )

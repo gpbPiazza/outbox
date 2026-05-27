@@ -2,6 +2,8 @@
 package wes
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -21,92 +23,124 @@ func NewHandler(repo Repository) *WesHandler {
 	}
 }
 
-func (wes *WesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		wes.post(w, r)
-	case http.MethodGet:
-		wes.get(w, r)
-	default:
-		log.FromContext(r.Context()).Error("http request received not implemented", "method_got", r.Method)
-		w.WriteHeader(http.StatusNotImplemented)
-	}
+func RegisterHandlers(ctx context.Context, dbx *sql.DB, server *http.ServeMux) {
+	repo := NewRepository(dbx)
+	wesHandler := NewHandler(repo)
+
+	server.HandleFunc("POST /wes", ctxMiddleware(wesHandler.post(), ctx))
+	server.HandleFunc("GET /wes/{id}", ctxMiddleware(wesHandler.get(), ctx))
+}
+
+func ctxMiddleware(next http.Handler, ctx context.Context) http.HandlerFunc {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+	})
 }
 
 type PostBody struct {
 	Moves []Move `json:"moves"`
 }
 
-func (wes *WesHandler) post(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	logger := log.FromContext(ctx)
-	if logger == nil {
-		panic("ai middlweare nao foi")
-	}
+func (wes *WesHandler) post() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		logger := log.FromContext(ctx)
 
-	bodyReader := r.Body
+		bodyReader := r.Body
 
-	bodyByte, err := io.ReadAll(bodyReader)
-	if err != nil {
-		log.FromContext(r.Context()).Error("read body fail", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	defer func() { _ = bodyReader.Close() }()
-
-	body := new(PostBody)
-	if err := json.Unmarshal(bodyByte, body); err != nil {
-		log.FromContext(r.Context()).Error("unmarshal body fail", "err", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	theMan := makeWes(body.Moves)
-
-	var wesDB Wes
-	var txErr error
-
-	txErr2 := wes.repo.RunInTx(ctx, func(query Querier) error {
-		wesDB, txErr = query.CreateWes(ctx, theMan.Height)
-		if txErr != nil {
-			log.FromContext(r.Context()).Error("fail to create wes row", "err", txErr)
-			return txErr
+		bodyByte, err := io.ReadAll(bodyReader)
+		if err != nil {
+			logger.Error("read body fail", "err", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
 
-		var mvsDB []Move
-		var mvDB Move
-		for _, mv := range theMan.Moves {
-			mvDB, txErr = query.CreateMove(ctx, wesDB.ID, mv.Status, mv.Description)
-			if txErr != nil {
-				log.FromContext(r.Context()).Error("fail to create wes row", "err", txErr)
-				return txErr
+		defer func() { _ = bodyReader.Close() }()
+
+		body := new(PostBody)
+		if err := json.Unmarshal(bodyByte, body); err != nil {
+			logger.Error("unmarshal body fail", "err", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		theMan := makeWes(body.Moves)
+
+		var wesDB Wes
+		err = wes.repo.RunInTx(ctx, func(query Querier) error {
+			wesDB, err = query.CreateWes(ctx, theMan.Height)
+			if err != nil {
+				logger.Error("fail to create wes row", "err", err)
+				return err
 			}
-			mvsDB = append(mvsDB, mvDB)
+
+			var mvsDB []Move
+			var mvDB Move
+			for _, mv := range theMan.Moves {
+				mvDB, err = query.CreateMove(ctx, wesDB.ID, mv.Status, mv.Description)
+				if err != nil {
+					logger.Error("fail to create wes row", "err", err)
+					return err
+				}
+				mvsDB = append(mvsDB, mvDB)
+			}
+			wesDB.Moves = mvsDB
+
+			return nil
+		})
+
+		if err != nil {
+			logger.Error("fail to start tx", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
-		wesDB.Moves = mvsDB
 
-		return nil
-	})
+		wesInBytes, err := json.Marshal(wesDB)
+		if err != nil {
+			logger.Error("marshalling wes fail", "err", err)
+			w.WriteHeader(http.StatusTeapot)
+			_, _ = w.Write([]byte("bro wes não consegue nem virar JSON, logo ele é um teapot"))
+		}
 
-	if txErr2 != nil {
-		log.FromContext(r.Context()).Error("fail to start tx", "err", txErr)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write(wesInBytes)
 	}
-
-	wesInBytes, err := json.Marshal(wesDB)
-	if err != nil {
-		log.FromContext(r.Context()).Error("marshalling wes fail", "err", err)
-		_, _ = w.Write([]byte("bro wes não consegue nem virar JSON, logo ele é um teapot"))
-		w.WriteHeader(http.StatusTeapot)
-	}
-
-	_, _ = w.Write(wesInBytes)
-	w.WriteHeader(http.StatusCreated)
 }
 
-func (wes *WesHandler) get(w http.ResponseWriter, r *http.Request) {
+func (wes *WesHandler) get() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		wesID := r.PathValue("id")
+
+		id, err := uuid.Parse(wesID)
+
+		log.FromContext(r.Context()).Info("get wes start", "wes_id", id)
+
+		if err != nil {
+			log.FromContext(r.Context()).Error("get wes fail", "err", err)
+
+			w.WriteHeader(http.StatusTeapot)
+			_, _ = w.Write([]byte("bro manda o wes ID certo po, logo você é um teapot"))
+			return
+		}
+
+		wesDB, err := wes.repo.GetWesByID(r.Context(), id)
+		if err != nil {
+			log.FromContext(r.Context()).Error("get wes fail", "err", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		wesInBytes, err := json.Marshal(wesDB)
+		if err != nil {
+			log.FromContext(r.Context()).Error("marshalling wes fail", "err", err)
+			w.WriteHeader(http.StatusTeapot)
+			_, _ = w.Write([]byte("bro wes não consegue nem virar JSON, logo ele é um teapot"))
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write(wesInBytes)
+	}
 }
 
 type Wes struct {
