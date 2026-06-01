@@ -5,6 +5,7 @@ import (
 
 	"github.com/gpbPiazza/pkg/db"
 	"github.com/gpbPiazza/pkg/log"
+	"github.com/gpbPiazza/pkg/piemit"
 )
 
 func main() {
@@ -19,6 +20,7 @@ func main() {
 	defer func() { _ = dbx.Close() }()
 	ctx = db.SetContext(ctx, dbx)
 
-	// eventEmitter := outbox.NewEventEmitter()
+	emmiter := piemit.NewEmitter(dbx)
 
+	emmiter.Start(ctx)
 }

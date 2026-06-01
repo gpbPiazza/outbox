@@ -5,5 +5,5 @@ import (
 )
 
 type Querier interface {
-	Create(ctx context.Context, e Event) error
+	Create(ctx context.Context, e event) error
 }

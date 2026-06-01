@@ -42,6 +42,14 @@ type PostBody struct {
 	Moves []Move `json:"moves"`
 }
 
+//	curl -i -X POST http://localhost:8080/wes \
+//	    -H "Content-Type: application/json" \
+//	    -d '{
+//	      "moves": [
+//	        {"status": "Wes fez a boa", "description": "wes fez uma boa jogada"},
+//	        {"status": "Wes com o livro de baixo do braço", "description": "wes estudando"}
+//	      ]
+//	    }'
 func (wes *WesHandler) post() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -108,6 +116,7 @@ func (wes *WesHandler) post() http.HandlerFunc {
 	}
 }
 
+// curl -i -X GET http://localhost:8080/wes/dc75ab22-c046-4dfb-b94a-53d7cba7e239
 func (wes *WesHandler) get() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		wesID := r.PathValue("id")

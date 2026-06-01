@@ -1,7 +1,6 @@
 package piemit
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,22 +25,11 @@ const (
 	Completed Status = "completed"
 )
 
-type Outbox struct {
-	MaxAttempts int
-}
-
 // Register -> é cliente da tabela events registrando no SQL
 // Emitter -> é pacote events publicando o evento apartida do Register
 
-type BoxParam struct {
-	// Event payload
-	Payload json.RawMessage
-	// Event topic name
-	Topic string
-}
-
-// Event is the event type registed in the DB
-type Event struct {
+// event is the event type registed in the DB
+type event struct {
 	ID uuid.UUID
 
 	// Event status
@@ -53,7 +41,8 @@ type Event struct {
 	// Attempets is the quantity of times tried to execute a event
 	Attempts int
 	// Errors is the attempt number + the error occured
-	Errors    map[int]string
+	// TODO: implement attempt ID or number + error feature relation
+	LastErr   string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }

@@ -20,8 +20,8 @@ func (r *registrar) Register(ctx context.Context, topicName string, payload any)
 	return r.querirer.Create(ctx, e)
 }
 
-func newPendingEvent(topicName string, payload any) Event {
-	return Event{
+func newPendingEvent(topicName string, payload any) event {
+	return event{
 		ID:        uuid.New(),
 		Status:    Pending,
 		Payload:   payload,

@@ -1,14 +1,21 @@
 package piemit
 
-import "context"
+import (
+	"context"
+
+	"github.com/gpbPiazza/pkg/db"
+)
 
 type Emitter struct {
 	querier       Querier
 	eventProvider Provider
+	db            db.DBTX
 }
 
-func NewEmitter() *Emitter {
-	return &Emitter{}
+func NewEmitter(db db.DBTX) *Emitter {
+	return &Emitter{
+		db: db,
+	}
 }
 
 type Provider interface {
@@ -17,16 +24,12 @@ type Provider interface {
 
 func (e *Emitter) Start(ctx context.Context) error {
 	for {
-
-		event := e.querier.NextPending(ctx)
-
-		err := event.SetActive()
-
-		err := e.querier.ActiveEvent(ctx, event)
-
+		// event := (ctx)
+		//
+		// err := event.SetActive()
+		//
+		// err := e.querier.ActiveEvent(ctx, event)
 	}
-
-	return nil
 }
 
 func (e *Emitter) Stop() error // graceful shutdown
